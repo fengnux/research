@@ -55,14 +55,6 @@ tenv tm use latest
 terramate version
 ```
 
-專案目錄內可用版本鎖定檔讓 tenv 自動切換版本：
-
-```bash
-# 在 opentofu/ 目錄下建立版本鎖定檔
-echo "1.9.0" > research/iac/opentofu/.opentofu-version
-echo "0.12.0" > research/iac/opentofu/.terramate-version
-```
-
 ### 4. 安裝 Google Cloud SDK
 
 ```bash

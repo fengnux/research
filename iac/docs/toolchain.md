@@ -2,12 +2,12 @@
 
 ## 工具選型
 
-| 工具 | 用途 | 安裝方式 |
-|------|------|---------|
-| [tenv](https://github.com/tofuutils/tenv) | OpenTofu / Terramate 版本管理 | `brew install tenv` |
-| [OpenTofu](https://opentofu.org) | IaC 主要工具（Terraform open-source fork）| `tenv tofu install latest` |
-| [Terramate](https://terramate.io) | Stack 管理、變更偵測、程式碼生成 | `tenv tm install latest` |
-| [Google Cloud SDK](https://cloud.google.com/sdk) | GCP 認證與資源操作 | `brew install --cask google-cloud-sdk` |
+| 工具 | 版本 | 用途 | 安裝方式 |
+|------|------|------|---------|
+| [tenv](https://github.com/tofuutils/tenv) | 4.12.2 | OpenTofu / Terramate 版本管理 | `brew install tenv` |
+| [OpenTofu](https://opentofu.org) | 1.11.6 | IaC 主要工具（Terraform open-source fork）| `tenv tofu install latest` |
+| [Terramate](https://terramate.io) | 0.17.0 | Stack 管理、變更偵測、程式碼生成 | `tenv tm install latest` |
+| [Google Cloud SDK](https://cloud.google.com/sdk) | 567.0.0 | GCP 認證與資源操作 | `brew install --cask google-cloud-sdk` |
 
 ### 為何選擇 OpenTofu
 
