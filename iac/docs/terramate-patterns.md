@@ -143,6 +143,56 @@ Globals 在 `terramate.tm.hcl`、`config.tm.hcl`、stack 自身或路徑上的�
 
 ---
 
+## Cross-env stack pattern
+
+跨環境 stack（如 `bootstrap`）位於 env 目錄之外，**沒有 `global.env.name`**。在 `generate_hcl` 內直接引用會在該 stack 上 generate 失敗。用 `tm_try` 提供 fallback：
+
+```hcl
+# default_labels 帶 environment，bootstrap fallback 為 "shared"
+default_labels = {
+  environment = tm_try(global.env.name, "shared")
+}
+```
+
+條件式生成（例如只對有 env 的 stack 產 backend）也用同一招：
+
+```hcl
+generate_hcl "_terramate_backend.tf" {
+  condition = tm_try(global.env.name, "") != ""
+  content {
+    terraform {
+      backend "gcs" {
+        bucket = global.gcp.state_bucket
+        prefix = tm_replace(terramate.stack.path, "/stacks/", "")
+      }
+    }
+  }
+}
+```
+
+> `tm_try(expr, default)` 在 generate 階段評估，不會寫進產出檔；與 Terraform runtime 的 `try()` 完全不同。
+
+---
+
+## 巢狀 stack 慣例
+
+本專案採用 **巢狀 stack 結構**（不採扁平命名）：
+
+```
+stacks/
+├── bootstrap/                  # 跨環境
+└── dev/
+    ├── globals.tm.hcl          # env globals
+    ├── network/                # stack
+    └── gke/                    # stack
+```
+
+- **stack name 與目錄末段同名**（不加 env 前綴；env 由路徑階層表達）
+- **依賴優先靠目錄階層**：巢狀 stack 預設 parent 先於 child 執行
+- 跨樹依賴才考慮在 `stack.tm.hcl` 寫 `after`
+
+---
+
 ## 常用工作流程速查
 
 | 場景 | 指令 |

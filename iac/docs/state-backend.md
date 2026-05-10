@@ -40,7 +40,20 @@ gs://research-lab-495809-tofu-state/
 | `lifecycle_rule { num_newer_versions = 10, Delete }` | 開 | 自動清舊版本，避免帳單膨脹 |
 | `uniform_bucket_level_access` | true | 統一 IAM，禁止舊式 ACL |
 | `public_access_prevention` | `enforced` | 禁止任何公開存取設定 |
-| Default labels | `managed-by`、`source-repo`、`purpose=tofu-state` | 帳務追蹤、找出不合規資源 |
+| Default labels | 見下節 | 帳務追蹤、找出不合規資源 |
+
+### Resource labeling 策略
+
+所有 GCP 資源透過 provider `default_labels` 自動帶上四個 label，不必在每個 resource 重複：
+
+| Label | 來源 | 用途 |
+|-------|------|------|
+| `managed-by` | `global.labels.managed_by` = `opentofu` | 區分人為手動 vs IaC 管理 |
+| `source-repo` | `global.labels.source_repo` = `tofu-terramate-hcl` | 找出資源由哪個 repo 控制 |
+| `stack` | `terramate.stack.name`（自動） | 帳單 / log 按 stack 細分 |
+| `environment` | `global.env.name`（缺值時 fallback `shared`） | 跨環境 filter |
+
+Resource 自身可加 stack-specific label（例如 bootstrap bucket 自帶 `purpose = "tofu-state"`），會與 `default_labels` merge。Provider 自動加的 `goog-terraform-provisioned = "true"` 也會出現，無需額外設定。
 
 ---
 
