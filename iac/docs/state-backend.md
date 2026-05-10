@@ -59,17 +59,19 @@ gs://research-lab-495809-tofu-state/
 
 ## State 路徑慣例（方案 A 的核心）
 
-在 `generate_hcl` 內為每個 stack 自動產生 backend 區塊，prefix 從 globals 拼出：
+採 **巢狀 stack** 結構，stack 目錄階層直接決定 GCS prefix。
+在 `generate_hcl` 內用 `terramate.stack.path` 自動推導，不需手寫 stack id。
 
 ```hcl
 # generate.tm.hcl（示意，Lab 03 才實作）
 generate_hcl "_terramate_backend.tf" {
-  condition = global.env.name != "bootstrap"  # bootstrap 不產 backend
+  condition = tm_try(global.env.name, "") != ""   # 只對有 env 的 stack 產 backend；bootstrap 跳過
   content {
     terraform {
       backend "gcs" {
         bucket = global.gcp.state_bucket
-        prefix = "${global.env.name}/${terramate.stack.id}"
+        # terramate.stack.path 例：/stacks/dev/network → 去掉 /stacks/ 前綴後 = dev/network
+        prefix = tm_replace(terramate.stack.path, "/stacks/", "")
       }
     }
   }
@@ -78,18 +80,26 @@ generate_hcl "_terramate_backend.tf" {
 
 最後路徑長相：
 
-| Stack 路徑 | env | stack.id | GCS prefix |
-|-----------|-----|----------|-----------|
-| `stacks/bootstrap/` | – | `bootstrap` | （local state，不適用） |
-| `stacks/dev/network/` | `dev` | `dev-network` | `dev/dev-network/` |
-| `stacks/dev/gke/` | `dev` | `dev-gke` | `dev/dev-gke/` |
-| `stacks/staging/network/` | `staging` | `staging-network` | `staging/staging-network/` |
+| Stack 目錄 | stack.name | GCS prefix |
+|-----------|-----------|-----------|
+| `stacks/bootstrap/` | `bootstrap` | （local state，不適用） |
+| `stacks/dev/network/` | `network` | `dev/network/` |
+| `stacks/dev/gke/` | `gke` | `dev/gke/` |
+| `stacks/staging/network/` | `network` | `staging/network/` |
 
 **規則：**
 
-- 環境靠 stack 目錄第一層（`dev/`、`staging/`）區分，並以 `globals "env" { name = ... }` 在那層定義
-- `stack.id` 全 repo 唯一，建議用 `<env>-<purpose>` 命名
-- bootstrap stack 不適用此規則（仍保留 local state 或自行設另一條 prefix）
+- 環境靠 stack 目錄第一層（`dev/`、`staging/`）區分；`globals "env" { name = ... }` 寫在 env 層的 `globals.tm.hcl`
+- `stack.name`（與目錄末段同名）即可表達用途，不需 `<env>-<purpose>` 前綴
+- 巢狀 stack 預設依目錄階層執行（parent 先 child 後），通常不必手寫 `after` 表達依賴
+
+### Bootstrap 例外
+
+Bootstrap stack 跨環境，不屬於任何 env：
+
+- 不在 env 目錄底下（直接放 `stacks/bootstrap/`）
+- 沒有 `global.env.name`，所以 `generate_hcl` 的 backend 區塊跳過它（保留 local state，或 Lab 03 用獨立 prefix `bootstrap/` 遷移到 GCS）
+- Provider `default_labels` 中 `environment` 欄位用 `tm_try(global.env.name, "shared")` fallback 為 `shared`
 
 ---
 
