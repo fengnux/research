@@ -62,15 +62,31 @@ OpenTofu / Terramate 工作流中有三種獨立的「版本鎖定」概念，�
 |----|----------|----------|--------|------|
 | **CLI 切換** | `.opentofu-version`、`.terramate-version` | tenv 應呼叫哪個 binary | tenv | 同一台機器多版本切換 |
 | **工具版本約束** | `terraform { required_version = ">= 1.11.0" }` | OpenTofu 自己拒絕版本不符 | OpenTofu | 防止用太舊 / 未驗證版本執行 |
-| **Provider 版本約束** | `required_providers { google = { version = "~> 7.0" } }` | 限制 provider 版本範圍 | OpenTofu | 鎖大版本，允許 patch 升級 |
+| **Provider 版本約束** | `required_providers { google = { version = "~> 7.31.0" } }` | 限制 provider 版本範圍 | OpenTofu | 鎖至 minor 內 patch（拒絕 7.32+） |
 | **Provider 確切鎖定** | `.terraform.lock.hcl` | 鎖到 patch 版本與 hash | OpenTofu | 確保所有人 / CI 用一模一樣的 provider |
 
 **本專案的選擇：**
 
-- 不使用 `.opentofu-version` / `.terramate-version`（避免 tenv 切換與 OpenTofu 原生版本約束混淆）
-- `required_version` 寫在 `globals "tofu"` 內，由 Terramate `generate_hcl` 注入
-- `required_providers.version` 同樣由 globals 注入（`~> 7.0`，鎖大版本）
-- `.terraform.lock.hcl` **必須 commit**，確保不同環境執行結果一致
+統一規則：所有版本約束採 `~> X.Y.Z` 形式（minor pin），只允許 patch 升級。原因：本 repo 對外公開，需避免「`~> 7.0` 含整個 7.x」這類解讀模糊；同時保留 patch 升級的彈性以接收安全更新。
+
+| 對象 | 約束位置 | 寫法 | 允許範圍 |
+|------|----------|------|----------|
+| Terramate | `terramate.tm.hcl` 的 `required_version` | `~> 0.17.0` | 0.17.x |
+| OpenTofu | `globals "tofu"` 內 `required_version`，由 `generate_hcl` 注入 | `~> 1.11.6` | 1.11.x |
+| google provider | `globals "tofu"` 內 `google_provider`，由 `generate_hcl` 注入 | `~> 7.31.0` | 7.31.x |
+
+**lock file 政策：**
+
+- `.terraform.lock.hcl` **必須 commit**（提供 provider 確切版本與 hash 的可重現性）
+- Terramate 沒有對等 lock file 機制，靠 `required_version` 收緊到 minor 即是目前能做到的最強約束
+- 不使用 `.opentofu-version` / `.terramate-version`（避免 tenv 切換與 code 內版本約束混淆）
+
+**升級流程：**
+
+1. 改 `globals` 中的版本字串（例如 `~> 7.31.0` → `~> 7.32.0`）
+2. `terramate generate` 同步生成檔
+3. `tofu init -upgrade` 更新 lock file
+4. Commit code 與 lock file 一起 review
 
 ---
 
