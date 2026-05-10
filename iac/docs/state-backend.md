@@ -62,8 +62,8 @@ Resource 自身可加 stack-specific label（例如 bootstrap bucket 自帶 `pur
 **問題**：state bucket 自己也要被 OpenTofu 管理，但第一次 apply 時 bucket 還不存在，無法當 backend。
 
 **解法**：
-1. Bootstrap stack 用 **local state** apply 出 bucket
-2. （Lab 03）把 bootstrap stack 的 state 用 `tofu init -migrate-state` 遷到剛建好的 bucket
+1. Bootstrap stack 用 **local state** apply 出 bucket（Lab 02）
+2. Bucket 建好後，用 `tofu init -migrate-state` 把 bootstrap state 遷到該 bucket（Lab 03a 已完成）
 3. 之後每個新 stack 都直接用 GCS backend，不再有 local state
 
 > Bootstrap 的 local state 在遷移前**只在本機**，需注意備份。
@@ -73,29 +73,32 @@ Resource 自身可加 stack-specific label（例如 bootstrap bucket 自帶 `pur
 ## State 路徑慣例（方案 A 的核心）
 
 採 **巢狀 stack** 結構，stack 目錄階層直接決定 GCS prefix。
-在 `generate_hcl` 內用 `terramate.stack.path` 自動推導，不需手寫 stack id。
+在 `generate_hcl` 內用 `terramate.stack.path.absolute` 自動推導，不需手寫 stack id。
 
 ```hcl
-# generate.tm.hcl（示意，Lab 03 才實作）
+# generate.tm.hcl（Lab 03a 實作）
 generate_hcl "_terramate_backend.tf" {
-  condition = tm_try(global.env.name, "") != ""   # 只對有 env 的 stack 產 backend；bootstrap 跳過
   content {
     terraform {
       backend "gcs" {
         bucket = global.gcp.state_bucket
-        # terramate.stack.path 例：/stacks/dev/network → 去掉 /stacks/ 前綴後 = dev/network
-        prefix = tm_replace(terramate.stack.path, "/stacks/", "")
+        # path.absolute 例：/stacks/dev/network → 去掉 /stacks/ 前綴後 = dev/network
+        prefix = tm_trimprefix(terramate.stack.path.absolute, "/stacks/")
       }
     }
   }
 }
 ```
 
+> ⚠️ **不要用 `tm_replace(path, "/stacks/", "")`**：第二個參數若被 `/.../` 包住會被當成 regex pattern，
+> 實際 match 到的是單字 `stacks`，會生出 `//bootstrap` 這種多斜線結果（Lab 03a 踩過）。
+> `tm_trimprefix` 語意明確、不走 regex。
+
 最後路徑長相：
 
 | Stack 目錄 | stack.name | GCS prefix |
 |-----------|-----------|-----------|
-| `stacks/bootstrap/` | `bootstrap` | （local state，不適用） |
+| `stacks/bootstrap/` | `bootstrap` | `bootstrap/` |
 | `stacks/dev/network/` | `network` | `dev/network/` |
 | `stacks/dev/gke/` | `gke` | `dev/gke/` |
 | `stacks/staging/network/` | `network` | `staging/network/` |
@@ -110,9 +113,9 @@ generate_hcl "_terramate_backend.tf" {
 
 Bootstrap stack 跨環境，不屬於任何 env：
 
-- 不在 env 目錄底下（直接放 `stacks/bootstrap/`）
-- 沒有 `global.env.name`，所以 `generate_hcl` 的 backend 區塊跳過它（保留 local state，或 Lab 03 用獨立 prefix `bootstrap/` 遷移到 GCS）
-- Provider `default_labels` 中 `environment` 欄位用 `tm_try(global.env.name, "shared")` fallback 為 `shared`
+- 不在 env 目錄底下（直接放 `stacks/bootstrap/`），所以 `tm_trimprefix` 算出來的 prefix 直接是 `bootstrap`
+- 沒有 `global.env.name`；Provider `default_labels` 中 `environment` 欄位用 `tm_try(global.env.name, "shared")` fallback 為 `shared`
+- State 與其他 stack 共用同一顆 bucket（受同一份 versioning / soft delete / `prevent_destroy` 保護）
 
 ---
 

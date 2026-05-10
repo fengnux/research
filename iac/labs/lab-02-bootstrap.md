@@ -161,4 +161,5 @@ State bucket 是關鍵基礎設施，誤刪會導致所有環境的 state 遺失
 
 ## 下一步
 
-[Lab 03 - 將 bootstrap state 遷移至 GCS、建立第一個 dev stack](lab-03-first-stack.md)
+- [Lab 03a - 將 bootstrap state 遷移至 GCS](lab-03a-state-migration.md)
+- Lab 03b - 建立第一個 dev stack（待規劃）

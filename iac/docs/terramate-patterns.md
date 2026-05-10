@@ -158,12 +158,11 @@ default_labels = {
 
 ```hcl
 generate_hcl "_terramate_backend.tf" {
-  condition = tm_try(global.env.name, "") != ""
   content {
     terraform {
       backend "gcs" {
         bucket = global.gcp.state_bucket
-        prefix = tm_replace(terramate.stack.path, "/stacks/", "")
+        prefix = tm_trimprefix(terramate.stack.path.absolute, "/stacks/")
       }
     }
   }
