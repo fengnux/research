@@ -54,6 +54,26 @@ tenv 單一工具即可管理 OpenTofu（`tenv tofu`）與 Terramate（`tenv tm`
 
 ---
 
+## 版本鎖定的三層機制
+
+OpenTofu / Terramate 工作流中有三種獨立的「版本鎖定」概念，常被混淆。
+
+| 層 | 設定方式 | 作用對象 | 強制者 | 用途 |
+|----|----------|----------|--------|------|
+| **CLI 切換** | `.opentofu-version`、`.terramate-version` | tenv 應呼叫哪個 binary | tenv | 同一台機器多版本切換 |
+| **工具版本約束** | `terraform { required_version = ">= 1.11.0" }` | OpenTofu 自己拒絕版本不符 | OpenTofu | 防止用太舊 / 未驗證版本執行 |
+| **Provider 版本約束** | `required_providers { google = { version = "~> 7.0" } }` | 限制 provider 版本範圍 | OpenTofu | 鎖大版本，允許 patch 升級 |
+| **Provider 確切鎖定** | `.terraform.lock.hcl` | 鎖到 patch 版本與 hash | OpenTofu | 確保所有人 / CI 用一模一樣的 provider |
+
+**本專案的選擇：**
+
+- 不使用 `.opentofu-version` / `.terramate-version`（避免 tenv 切換與 OpenTofu 原生版本約束混淆）
+- `required_version` 寫在 `globals "tofu"` 內，由 Terramate `generate_hcl` 注入
+- `required_providers.version` 同樣由 globals 注入（`~> 7.0`，鎖大版本）
+- `.terraform.lock.hcl` **必須 commit**，確保不同環境執行結果一致
+
+---
+
 ## tenv 設定
 
 ### GitHub Token（解決下載 rate limit）
