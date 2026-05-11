@@ -34,6 +34,24 @@ Terramate 解決這些問題的方式：
 | **執行協調** | 管理 stack 間依賴關係，確保正確的執行順序 |
 | **Globals** | 跨 stack 共用設定（project ID、region 等），單點維護 |
 
+#### 與 Terragrunt 的比較
+
+Terragrunt（Gruntwork，2016 起）是同類工具中歷史最久、社群最大的選項。兩者都能解決上述痛點，但在「設定如何被組織與呈現」上採取不同哲學。
+
+| 構面 | Terragrunt | Terramate |
+|------|-----------|-----------|
+| DRY 機制 | `include` 鏈 + `inputs` 合併，多層繼承 | `globals` 繼承 + `generate_hcl` 產出 `.tf` 檔 |
+| 最終設定可見性 | 在 `.terragrunt-cache/` 內動態合成，**不進 git** | 生成檔寫進 stack 目錄並 commit，**PR diff 直接可見** |
+| 跨 stack 依賴 | `dependency` block 可直接讀其他 stack output | 靠目錄階層自然排序；跨樹依賴用 `after`；output 傳遞較弱 |
+| 變更偵測 | 無內建，靠 wrapper script / CI 自製 | 內建 `terramate list --changed`，git-aware |
+| 成熟度 | 2016 起，社群大、案例多 | 2022 起，較新；CI 整合與「設定可見性」是亮點 |
+
+**本專案選 Terramate 的核心原因**：偏好「最終生成設定看得見、commit 在 repo 內」的工作流。
+
+Terragrunt 的 `include` 繼承雖然 DRY，但讀一個葉節點 stack 常需要往上追 2–3 層 `terragrunt.hcl`，再去 `.terragrunt-cache/` 看合成結果才能完整理解該 stack 實際會 apply 什麼。Terramate 的 `generate_hcl` 輸出直接寫在 stack 目錄下並 commit（如 `_terramate_backend.tf`、`_terramate_provider.tf`），PR review 看到的就是 OpenTofu 真正執行的內容，認知成本較低。
+
+代價是：跨 stack output 傳遞、社群案例量目前不如 Terragrunt 成熟，需自行驗證踩過再用。
+
 ### 為何選擇 tenv
 
 tenv 單一工具即可管理 OpenTofu（`tenv tofu`）與 Terramate（`tenv tm`）的版本，

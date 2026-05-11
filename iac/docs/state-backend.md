@@ -121,9 +121,62 @@ Bootstrap stack 跨環境，不屬於任何 env：
 
 ## 復原情境
 
-| 場景 | 動作 |
-|------|------|
-| State 檔被覆寫成壞值 | Bucket versioning 取舊版（`gsutil ls -a`）覆蓋回來 |
-| State 物件被刪 | 90 天內 soft delete 救回（`gcloud storage objects restore`） |
-| Bucket 被刪 | `prevent_destroy` 已擋住此情境；若仍發生，只能重建 bucket + 從備份還原 state |
-| Lock 卡住（罕見） | GCS backend 的 lock object 可手動刪（`<prefix>/default.tflock`） |
+| 場景 | 機制 | 視窗 |
+|------|------|------|
+| State 檔被覆寫成壞值 | Bucket versioning 取舊版蓋回 | 受 lifecycle `num_newer_versions = 10` 限制，最多保留 10 個舊版 |
+| State 物件被刪 | Soft delete 救回 | 90 天 |
+| Bucket 被刪 | `prevent_destroy` 已擋住一般情境；若仍發生需重建 + 還原 | — |
+| Lock 卡住（罕見） | 手動刪 GCS backend lock object（`<prefix>/default.tflock`） | — |
+
+### Object 救回操作
+
+> ⚠️ **救回前先做兩件事**：
+> 1. **停手**：state 異常時不要再跑 `tofu apply`，會把壞狀態固化
+> 2. **備份現況**：先把目前的（壞的）state 拷一份到本機，免得救錯版本還想回頭看
+>     ```bash
+>     gcloud storage cp gs://<bucket>/<prefix>/default.tfstate ./broken.tfstate.bak
+>     ```
+> 救回後一律以 `tofu plan` 驗證（預期看到空 plan 或符合心中模型的 diff），才繼續操作。
+
+**情境 A：Object 被覆寫成壞值（用 versioning 回滾）**
+
+Versioning 保存「被覆寫」前的舊版本，物件本身仍存在。
+
+```bash
+# 列出所有版本（含舊版），會看到多筆 GENERATION 號
+gcloud storage ls --all-versions \
+  gs://research-lab-495809-tofu-state/bootstrap/default.tfstate
+
+# 複製特定 generation 蓋回最新版（GENERATION 是純數字）
+gcloud storage cp \
+  gs://research-lab-495809-tofu-state/bootstrap/default.tfstate#<GENERATION> \
+  gs://research-lab-495809-tofu-state/bootstrap/default.tfstate
+```
+
+**情境 B：Object 被刪除（用 soft delete 救回，90 天內）**
+
+Soft delete 保存「被刪除」的物件，與 versioning 是兩套獨立機制——列舉指令不同。
+
+```bash
+# 列出 soft-deleted 物件
+gcloud storage ls --soft-deleted \
+  gs://research-lab-495809-tofu-state/bootstrap/
+
+# 救回（要帶從上面查到的 soft-deleted GENERATION）
+gcloud storage objects restore \
+  gs://research-lab-495809-tofu-state/bootstrap/default.tfstate#<GENERATION>
+```
+
+**情境 C：Bucket 被刪（disaster recovery）**
+
+`prevent_destroy` + uniform access + IAM 已大幅降低此情境發生機率，但仍可能因 project 層級災難（誤刪 project、billing 中斷導致資源回收）發生。一旦發生：
+
+1. 確認 GCP project 若被 soft-deleted（30 天內），先 `gcloud projects undelete` 救回 project，bucket 與物件可能跟著回來
+2. 若 project 還在但 bucket 不見，bucket 名稱在 GCP 全域唯一，幾分鐘內可能還無法被別人搶註但不保證
+3. 重新 bootstrap：
+   - 用 local state 跑一次 bootstrap stack 建立新 bucket（同 Lab 02 流程）
+   - 若有本機備份的 state（如上面 `./broken.tfstate.bak` 或更早的 `gcloud storage cp` 備份）→ `gcloud storage cp` 推回新 bucket 對應 prefix
+   - 若無備份 → 只能用 `tofu import` 把現存的 GCP 資源逐個 reimport 到新 state（工作量視資源數而定）
+4. 全部 stack 跑 `tofu init -reconfigure` 指向新 bucket
+
+> 教訓：bootstrap 完成後，建議每隔一段時間（或重大變更前）手動把 state 物件 `gcloud storage cp` 出來離線備份一份，作為 bucket 級災難的最後保險。
