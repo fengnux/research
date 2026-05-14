@@ -39,7 +39,7 @@ prefix = tm_trimprefix(terramate.stack.path.absolute, "/stacks/")
 
 ### 1. 在 root 加入 backend 生成規則
 
-編輯 [tofu-terramate-hcl/generate.tm.hcl](https://github.com/fengnux/tofu-terramate-hcl/blob/main/generate.tm.hcl)，新增一個 `generate_hcl` block：
+編輯 [tofu-terramate-lab/generate.tm.hcl](https://github.com/fengnux/tofu-terramate-lab/blob/main/generate.tm.hcl)，新增一個 `generate_hcl` block：
 
 ```hcl
 generate_hcl "_terramate_backend.tf" {
@@ -59,7 +59,7 @@ generate_hcl "_terramate_backend.tf" {
 ### 2. 產生新的 backend 檔
 
 ```bash
-cd ~/GitHub/tofu-terramate-hcl
+cd ~/GitHub/tofu-terramate-lab
 terramate generate
 ```
 

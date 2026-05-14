@@ -20,7 +20,7 @@ Bootstrap stack 本身使用 **local state**（雞生蛋問題：建 backend 的
 | GCP Project ID | `research-lab-495809` |
 | Region | `asia-east1` |
 | State Bucket | `research-lab-495809-tofu-state` |
-| 設定檔 Repo | [fengnux/tofu-terramate-hcl](https://github.com/fengnux/tofu-terramate-hcl) |
+| 設定檔 Repo | [fengnux/tofu-terramate-lab](https://github.com/fengnux/tofu-terramate-lab) |
 
 ---
 
@@ -47,14 +47,14 @@ gcloud services list --enabled --project=research-lab-495809 \
 
 ```bash
 cd ~/GitHub
-git clone https://github.com/fengnux/tofu-terramate-hcl.git
-cd tofu-terramate-hcl
+git clone https://github.com/fengnux/tofu-terramate-lab.git
+cd tofu-terramate-lab
 ```
 
 目錄結構：
 
 ```
-tofu-terramate-hcl/
+tofu-terramate-lab/
 ├── terramate.tm.hcl        # Terramate root config
 ├── config.tm.hcl           # 共用 globals (gcp / tofu / labels)
 ├── generate.tm.hcl         # generate_hcl 規則：產生 versions / provider

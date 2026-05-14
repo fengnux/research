@@ -127,7 +127,7 @@ output "enabled_apis" {
 #### 1.4 generate + 看 diff + commit
 
 ```bash
-cd ~/GitHub/tofu-terramate-hcl
+cd ~/GitHub/tofu-terramate-lab
 terramate generate
 git status
 ```
@@ -333,7 +333,7 @@ terramate run --tags network -- tofu apply
 - [ ] `gcloud compute routers nats describe dev-nat --router dev-nat-router --region asia-east1 --project research-lab-495809` 顯示 `sourceSubnetworkIpRangesToNat: ALL_SUBNETWORKS_ALL_IP_RANGES`、`natIpAllocateOption: AUTO_ONLY`
 - [ ] `terramate run --tags apis -- tofu plan` 與 `--tags network -- tofu plan` 都顯示 no changes
 - [ ] `terramate generate --detailed-exit-code` exit code = 0（無漂移）
-- [ ] 兩個 stack 各自的 commit 已 push 至 `tofu-terramate-hcl` 主分支
+- [ ] 兩個 stack 各自的 commit 已 push 至 `tofu-terramate-lab` 主分支
 
 ---
 
