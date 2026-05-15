@@ -92,23 +92,9 @@ stack {
 }
 ```
 
-#### 2.2 `locals.tm.hcl`（Terramate globals → HCL locals）
+#### 2.2 `main.tf`
 
-`.tf` 檔無法直接讀取 Terramate globals，需透過 `generate_hcl` 橋接。subnetwork 路徑需要 project ID，因此在 stack 內建一個 `locals.tm.hcl`：
-
-```hcl
-generate_hcl "_terramate_locals.tf" {
-  content {
-    locals {
-      project_id = global.gcp.lab_project
-    }
-  }
-}
-```
-
-`terramate generate` 後會產出 `_terramate_locals.tf`，`main.tf` 即可使用 `local.project_id`。
-
-#### 2.3 `main.tf`
+`network_interface` 只需指定 `subnetwork` 名稱即可——GCP 會從子網路自動推導所屬 VPC，不需同時填 `network`。`project` 和 `region` 由 provider 層統一管理，`.tf` 無需明確指定：
 
 ```hcl
 resource "google_compute_instance" "dev_vm" {
@@ -127,8 +113,7 @@ resource "google_compute_instance" "dev_vm" {
   }
 
   network_interface {
-    network    = "dev-vpc"
-    subnetwork = "projects/${local.project_id}/regions/asia-east1/subnetworks/dev-subnet-asia-east1"
+    subnetwork = "dev-subnet-asia-east1"
     # access_config 不加 → 無 public IP
   }
 
@@ -138,9 +123,7 @@ resource "google_compute_instance" "dev_vm" {
 }
 ```
 
-> `project` 欄位不需填寫——`_terramate_provider.tf` 已由 `generate_hcl` 注入 `project = global.gcp.lab_project`，provider 層統一管理。
-
-#### 2.4 `outputs.tf`
+#### 2.3 `outputs.tf`
 
 ```hcl
 output "instance_name" {
@@ -162,7 +145,7 @@ terramate generate
 確認新增：
 - `stacks/dev/vm/_terramate_backend.tf`（prefix = `dev/vm`）
 - `stacks/dev/vm/_terramate_provider.tf`
-- `stacks/dev/vm/_terramate_locals.tf`（`local.project_id = "research-lab-495809"`）
+- `stacks/dev/vm/_terramate_versions.tf`
 
 ### 4. Commit
 
