@@ -60,20 +60,19 @@ vm stack 只依賴 network（需要 VPC / subnet 存在），apis 已透過 netw
 
 ### 1. 更新 `stacks/dev/apis/main.tf`
 
-補加 `iap.googleapis.com`（OS Login 需要）：
+補加 `iap.googleapis.com`（OS Login 需要）。注意現有 resource 命名是 `google_project_service.this`、local 名稱是 `enabled_apis`，不需加 `project`（provider 層已設定）：
 
 ```hcl
 locals {
-  apis = [
+  enabled_apis = [
     "compute.googleapis.com",
     "iap.googleapis.com",   # ← 新增
   ]
 }
 
-resource "google_project_service" "apis" {
-  for_each = toset(local.apis)
+resource "google_project_service" "this" {
+  for_each = toset(local.enabled_apis)
 
-  project            = var.project_id
   service            = each.value
   disable_on_destroy = false
 }
@@ -93,14 +92,29 @@ stack {
 }
 ```
 
-#### 2.2 `main.tf`
+#### 2.2 `locals.tm.hcl`（Terramate globals → HCL locals）
+
+`.tf` 檔無法直接讀取 Terramate globals，需透過 `generate_hcl` 橋接。subnetwork 路徑需要 project ID，因此在 stack 內建一個 `locals.tm.hcl`：
+
+```hcl
+generate_hcl "_terramate_locals.tf" {
+  content {
+    locals {
+      project_id = global.gcp.lab_project
+    }
+  }
+}
+```
+
+`terramate generate` 後會產出 `_terramate_locals.tf`，`main.tf` 即可使用 `local.project_id`。
+
+#### 2.3 `main.tf`
 
 ```hcl
 resource "google_compute_instance" "dev_vm" {
   name         = "dev-vm"
   machine_type = "e2-micro"
   zone         = "asia-east1-b"
-  project      = var.project_id
 
   tags = ["iap-ssh"]
 
@@ -114,7 +128,7 @@ resource "google_compute_instance" "dev_vm" {
 
   network_interface {
     network    = "dev-vpc"
-    subnetwork = "projects/${var.project_id}/regions/asia-east1/subnetworks/dev-subnet-asia-east1"
+    subnetwork = "projects/${local.project_id}/regions/asia-east1/subnetworks/dev-subnet-asia-east1"
     # access_config 不加 → 無 public IP
   }
 
@@ -124,7 +138,9 @@ resource "google_compute_instance" "dev_vm" {
 }
 ```
 
-#### 2.3 `outputs.tf`
+> `project` 欄位不需填寫——`_terramate_provider.tf` 已由 `generate_hcl` 注入 `project = global.gcp.lab_project`，provider 層統一管理。
+
+#### 2.4 `outputs.tf`
 
 ```hcl
 output "instance_name" {
@@ -146,6 +162,7 @@ terramate generate
 確認新增：
 - `stacks/dev/vm/_terramate_backend.tf`（prefix = `dev/vm`）
 - `stacks/dev/vm/_terramate_provider.tf`
+- `stacks/dev/vm/_terramate_locals.tf`（`local.project_id = "research-lab-495809"`）
 
 ### 4. Commit
 
