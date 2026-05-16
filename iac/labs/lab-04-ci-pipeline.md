@@ -213,7 +213,7 @@ terramate run --changed --git-change-base="$PUSH_CHANGE_BASE" --no-tags foundati
 |-----|------|------|---------|
 | [04a](lab-04a-apply-approval-gate.md) | ✅ done (2026-05-16) | Apply approval gate | `apply` job 綁 GitHub Environment `production` + required reviewer |
 | [04c](lab-04c-pr-plan-comment.md) | ✅ done (2026-05-16) | PR plan sticky comment | `marocchino/sticky-pull-request-comment` 貼 plan 輸出；輸出檔必須寫 `${{ runner.temp }}` 避開 terramate git-untracked safeguard |
-| 04f | 🔜 next | WIF condition 收斂 | 動 `stacks/ci/github-actions-wif`：`attribute_condition` 從只看 repo owner 收緊到 `repository=fengnux/tofu-terramate-lab` + branch/PR；本機 re-apply |
+| [04f](lab-04f-wif-condition.md) | ✅ done (2026-05-16) | WIF condition 收斂 | `attribute_condition` 加上 ref 限制（`refs/heads/main` 或 `refs/pull/*`）；本機 re-apply；PR plan job auth 驗證通過 |
 | 04d | 待 04b 後 | Drift detection | scheduled workflow 每日跑 `terramate run --no-tags foundational -- tofu plan -detailed-exitcode`；有 drift 自動開 issue。建議改用 04b 的 read-only SA 跑，較安全 |
 | 04b | 待 | Plan/Apply SA 拆分 | WIF stack 新增 `github-actions-tofu-plan`（read-only）+ 第二組 WIF binding；PR workflow 改用 plan SA，apply job 維持原 SA |
 | 04e | 待 | IaC 安全掃描 | tfsec 或 checkov 加進 PR job；SARIF 上傳 GitHub Code Scanning |
