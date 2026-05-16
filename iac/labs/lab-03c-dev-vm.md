@@ -236,4 +236,4 @@ gcloud compute instances list --project research-lab-495809
 
 ## 下一步
 
-- Lab 04：CI Pipeline（GitHub Actions + Workload Identity Federation + Terramate `--changed`）
+[Lab 04 - CI Pipeline：GitHub Actions + Workload Identity Federation + Terramate `--changed`](lab-04-ci-pipeline.md)
