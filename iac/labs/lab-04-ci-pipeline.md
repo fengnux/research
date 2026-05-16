@@ -26,10 +26,10 @@ WIF 機制說明見 [Workload Identity Federation：GitHub Actions 登入 GCP](.
 
 | Event | 行為 |
 |-------|------|
-| `pull_request` | generate diff check、fmt check、**changed stacks（不含 WIF）** init/validate/plan + WIF 變更警示 |
-| `push` to `main` | **changed stacks（不含 WIF）** init/apply + WIF 變更警示 |
+| `pull_request` | generate diff check、fmt check、**changed stacks（不含 foundational）** init/validate/plan + foundational 變更警示 |
+| `push` to `main` | **changed stacks（不含 foundational）** init/apply + foundational 變更警示 |
 
-PR 只做預覽，不改 GCP。合併到 `main` 後才由 CI apply。WIF stack 由 CI 完全跳過（見 [Workload Identity Federation：為什麼 WIF stack 不讓 CI 自動 apply](../docs/workload-identity-federation.md#為什麼-wif-stack-不讓-ci-自動-apply)）。
+PR 只做預覽，不改 GCP。合併到 `main` 後才由 CI apply。`foundational` tag 涵蓋 bootstrap 與 WIF stack —— 前者管 state bucket、後者管 CI 信任邊界，兩者都不該由 CI 自身修改（chicken-and-egg）。詳見 [Workload Identity Federation：為什麼 WIF stack 不讓 CI 自動 apply](../docs/workload-identity-federation.md#為什麼-wif-stack-不讓-ci-自動-apply)。
 
 ### WIF bootstrap
 
@@ -107,6 +107,8 @@ terramate run --tags wif -- tofu apply
 
 第一次 apply 完成後，等待約 5 分鐘讓 WIF / IAM 設定傳播。
 
+WIF stack 的 `stack.tm.hcl` 須帶 `foundational` tag（與 bootstrap 一致），讓 CI workflow 可用 `--no-tags foundational` 一次性排除。
+
 ### 4. 檢查 outputs
 
 ```bash
@@ -126,10 +128,10 @@ workload_identity_provider_name = "projects/1074394836652/locations/global/workl
 
 | Job | 觸發條件 | 內容 |
 |-----|---------|------|
-| `detect-wif-changes` | PR 與 `push` 都跑 | 用 `terramate list --changed --tags wif` 偵測 WIF stack 變更；有變更時印 warning 並提示「需本機 apply」，**不 fail CI** |
+| `detect-foundational-changes` | PR 與 `push` 都跑 | 用 `terramate list --changed --tags foundational` 偵測 bootstrap / WIF 變更；有變更時印 warning 並提示「需本機 apply」，**不 fail CI** |
 | `generate-check` | PR 與 `push` 都跑 | `terramate generate && git diff --exit-code`，確保 generated files 與 source 同步 |
-| `plan` | 僅 `pull_request` | `terramate run --changed --no-tags wif -- tofu init/validate/plan` |
-| `apply` | 僅 `push` to `main` | `terramate run --changed --git-change-base="${{ github.event.before }}" --no-tags wif -- tofu init/apply` |
+| `plan` | 僅 `pull_request` | `terramate run --changed --no-tags foundational -- tofu init/validate/plan` |
+| `apply` | 僅 `push` to `main` | `terramate run --changed --git-change-base="${{ github.event.before }}" --no-tags foundational -- tofu init/apply` |
 
 使用的 actions：
 
@@ -161,9 +163,9 @@ git push -u origin test/lab04-ci
 開 PR 後確認 workflow：
 
 - `terramate generate` 後 `git diff --exit-code` 成功
-- `terramate run --changed -- tofu fmt -check` 成功
-- `terramate run --changed -- tofu validate` 成功
-- `terramate run --changed -- tofu plan` 成功
+- `terramate run --changed --no-tags foundational -- tofu fmt -check` 成功
+- `terramate run --changed --no-tags foundational -- tofu validate` 成功
+- `terramate run --changed --no-tags foundational -- tofu plan` 成功
 - 沒有執行 apply
 
 ### 7. Merge 後驗證 apply
@@ -171,8 +173,8 @@ git push -u origin test/lab04-ci
 PR merge 到 `main` 後，`push` workflow 會執行：
 
 ```bash
-terramate run --changed --git-change-base="$PUSH_CHANGE_BASE" --include-all-dependencies --no-tags wif -- tofu init -input=false
-terramate run --changed --git-change-base="$PUSH_CHANGE_BASE" --no-tags wif -- tofu apply -input=false -auto-approve -lock-timeout=5m
+terramate run --changed --git-change-base="$PUSH_CHANGE_BASE" --no-tags foundational -- tofu init -input=false
+terramate run --changed --git-change-base="$PUSH_CHANGE_BASE" --no-tags foundational -- tofu apply -input=false -auto-approve -lock-timeout=5m
 ```
 
 確認 GitHub Actions 成功，並檢查 GCS state 有更新。
@@ -187,7 +189,7 @@ terramate run --changed --git-change-base="$PUSH_CHANGE_BASE" --no-tags wif -- t
 - [ ] `tofu output workload_identity_provider_name` 與 workflow 內設定一致
 - [ ] PR workflow 只 plan、不 apply
 - [ ] `main` push workflow 可 apply changed stacks
-- [ ] 修改 WIF stack 時，CI 印出 warning 但不 fail，並提示需本機 apply
+- [ ] 修改 foundational stack（bootstrap 或 WIF）時，CI 印出 warning 但不 fail，並提示需本機 apply
 - [ ] GitHub repo 沒有儲存任何 service account JSON key
 
 ---
@@ -197,8 +199,9 @@ terramate run --changed --git-change-base="$PUSH_CHANGE_BASE" --no-tags wif -- t
 - **WIF 立即失敗**：等待 5 分鐘再重跑 workflow，IAM/WIF 傳播需要時間。
 - **`tofu init` 無法讀 GCS backend**：確認 `github-actions-tofu` 有 `roles/storage.objectAdmin`。
 - **`terramate list --changed` 在 main 為空**：這是 git base 行為；PR workflow 最符合 changed stacks 模型。直接在 main 開發時，必要時用 `--git-change-base=HEAD~1` 做實驗。
-- **WIF stack 需要修改**：從本機 ADC 執行 `terramate run --tags wif -- tofu apply`，不要讓 CI 自行修改。
-- **PR plan 不嘗試 plan WIF stack**：CI service account 沒有 WIF resources 的 viewer 權限，若 PR 觸發 WIF stack 的 plan 會失敗。改以 `--no-tags wif` 跳過 + `detect-wif-changes` job 提示變更，讓審查者改走本機 apply 流程。
+- **WIF / bootstrap stack 需要修改**：從本機 ADC 執行 `terramate run --tags wif -- tofu apply`（或對應 bootstrap），不要讓 CI 自行修改。
+- **PR plan 不嘗試 plan foundational stack**：CI service account 沒有 WIF resources viewer 權限、也沒有 state bucket 管理權限，若 PR 觸發 foundational stack 的 plan/apply 會失敗。workflow 統一用 `--no-tags foundational` 跳過，再由 `detect-foundational-changes` job 提示變更，讓審查者改走本機 apply 流程。
+- **`.terraform.lock.hcl` 不入 git**：Terramate 官方範例做法（避免 CI Linux runner 補 hash 觸發 git-uncommitted safeguard）。詳見 [toolchain.md：Provider Lock File 政策](../docs/toolchain.md#provider-lock-file-政策)。
 
 ---
 
