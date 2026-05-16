@@ -1,6 +1,6 @@
 # Terramate Change Detection
 
-> 機制 / 設計理解文件。實驗步驟見文末「待補實驗」，跑過後回頭補。
+> 機制 / 設計理解文件。實際驗證情境見文末「實驗驗證對照」段。
 
 ## 目的
 
@@ -105,16 +105,19 @@ terramate {
 
 ---
 
-## 待補實驗
+## 實驗驗證對照
 
-以下情境跑過後回頭補實驗步驟與輸出：
+本 doc 列出的主要情境已在 Lab 04 系列實際跑過：
 
-- [ ] feature branch 改 1 個 stack，`terramate list --changed` 確認只列出該 stack
-- [ ] main 上連續 2 個 commit、push 後，`--changed` 為空（重現盲點）
-- [ ] 用 `--git-change-base=HEAD~1` 在 main 上偵測最新一個 commit 的變更
-- [ ] 用 tag (`last-deploy`) 當 base，演練「自上次部署以來」工作流
-- [ ] 改 root `generate.tm.hcl` 規則，驗證所有 stack 都被偵測為變更（透過 generated 檔 diff）
-- [ ] `stack.watch` 指向 stack 外檔案，改該檔，驗證對應 stack 被偵測
-- [ ] 未 commit / 未追蹤檔案下 `--changed` 的 safeguard 行為
+| 情境 | 驗證所在 |
+|------|---------|
+| feature branch 改 1 個 stack，`--changed` 只列出該 stack | [Lab 04](../labs/lab-04-ci-pipeline.md) PR plan（dev/vm）、[Lab 04c](../labs/lab-04c-pr-plan-comment.md) PR #4（dev/network） |
+| main 連續 2 個 commit 後 `--changed` 為空（盲點） | [Lab 04 風險與回退段](../labs/lab-04-ci-pipeline.md#風險與回退)：CI 用 `--git-change-base="${{ github.event.before }}"` 解掉，等價於對 main 上「這次 push 前後」做 diff |
+| `--git-change-base=HEAD~1` 在 main 上偵測 | 概念同上：CI 用 `github.event.before` 取代 `HEAD~1`，意義一致但 push event SHA 更精確 |
+| 改 root globals / `generate.tm.hcl` 規則導致所有 stack 被偵測 | [Lab 04 過程](../labs/logs/2026-05-16.md)：改 `config.tm.hcl` 後 `terramate generate` 重產所有 stack 的 `_terramate_*.tf`，這些 generated 檔的 commit 即觸發 `--changed` 涵蓋全部 stack |
+| 未追蹤檔案下 `--changed` 的 safeguard 行為 | [Lab 04c 踩坑](../labs/lab-04c-pr-plan-comment.md#風險與回退)：`plan-output.md` 寫在 workspace 內 → `Error: repository has untracked files`；解法是寫到 `${{ runner.temp }}` |
 
-實驗完整 lab：待開 `lab-XX-change-detection.md`，本 doc 補 cross-link。
+未驗證且暫不規劃：
+
+- tag (`last-deploy`) 當 base 演練「自上次部署以來」工作流——CI 已用 push event SHA，個人 lab 不需另一套 tag 追蹤機制
+- `stack.watch` 指向 stack 外檔案——本 repo 無共享配置檔需要 watch，無實務情境
