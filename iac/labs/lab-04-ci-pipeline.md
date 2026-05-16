@@ -205,8 +205,22 @@ terramate run --changed --git-change-base="$PUSH_CHANGE_BASE" --no-tags foundati
 
 ---
 
-## 下一步
+## 延伸實驗 Roadmap
 
-- 將 apply job 綁定 GitHub Environment，加上人工 approval
-- 拆分 plan/apply service account，縮小 PR workflow 權限
-- 將 plan 結果回寫 PR comment
+執行順序原則：先做純 workflow 改動（不動 GCP），再做動 WIF stack 的，最後做外部 SaaS。
+
+| Lab | 狀態 | 主題 | 設計重點 |
+|-----|------|------|---------|
+| [04a](lab-04a-apply-approval-gate.md) | ✅ done (2026-05-16) | Apply approval gate | `apply` job 綁 GitHub Environment `production` + required reviewer |
+| [04c](lab-04c-pr-plan-comment.md) | ✅ done (2026-05-16) | PR plan sticky comment | `marocchino/sticky-pull-request-comment` 貼 plan 輸出；輸出檔必須寫 `${{ runner.temp }}` 避開 terramate git-untracked safeguard |
+| 04f | 🔜 next | WIF condition 收斂 | 動 `stacks/ci/github-actions-wif`：`attribute_condition` 從只看 repo owner 收緊到 `repository=fengnux/tofu-terramate-lab` + branch/PR；本機 re-apply |
+| 04d | 待 04b 後 | Drift detection | scheduled workflow 每日跑 `terramate run --no-tags foundational -- tofu plan -detailed-exitcode`；有 drift 自動開 issue。建議改用 04b 的 read-only SA 跑，較安全 |
+| 04b | 待 | Plan/Apply SA 拆分 | WIF stack 新增 `github-actions-tofu-plan`（read-only）+ 第二組 WIF binding；PR workflow 改用 plan SA，apply job 維持原 SA |
+| 04e | 待 | IaC 安全掃描 | tfsec 或 checkov 加進 PR job；SARIF 上傳 GitHub Code Scanning |
+| 04g | 待 | Terramate Cloud 整合 | 連 Terramate Cloud：stack 拓撲視覺化、plan preview、drift dashboard；需評估免費額度與 OIDC 連線 |
+
+### 共通踩坑提醒
+
+- **`terramate run` git-clean safeguard**：workspace 不能有 untracked / uncommitted 檔案。CI 中若要產生 artifact（如 plan 輸出），一律寫到 `${{ runner.temp }}` 而非 workspace。
+- **API payload 覆寫整體**：GitHub `PUT /repos/.../environments/{name}` 會覆寫整個 environment 設定，要動 protection rule 時記得帶上既有的 `deployment_branch_policy`，否則 branch policy 會被清空。
+- **Foundational stack 例外**：WIF、bootstrap 永遠由本機 ADC apply，CI workflow 用 `--no-tags foundational` 排除，並由 `detect-foundational-changes` job 印 warning 而非 fail。
