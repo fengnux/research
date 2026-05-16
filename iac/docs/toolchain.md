@@ -74,7 +74,7 @@ tenv 單一工具即可管理 OpenTofu（`tenv tofu`）與 Terramate（`tenv tm`
 
 ## 版本鎖定的三層機制
 
-OpenTofu / Terramate 工作流中有三種獨立的「版本鎖定」概念，常被混淆。
+OpenTofu / Terramate 工作流中有幾種獨立的「版本鎖定」概念，常被混淆。它們解決的是不同問題，不能只靠其中一層取代全部。
 
 | 層 | 設定方式 | 作用對象 | 強制者 | 用途 |
 |----|----------|----------|--------|------|
@@ -85,26 +85,70 @@ OpenTofu / Terramate 工作流中有三種獨立的「版本鎖定」概念，�
 
 **本專案的選擇：**
 
-統一規則：所有版本約束採 `~> X.Y.Z` 形式（minor pin），只允許 patch 升級。原因：本 repo 對外公開，需避免「`~> 7.0` 含整個 7.x」這類解讀模糊；同時保留 patch 升級的彈性以接收安全更新。
+版本鎖定採分層策略：
+
+1. **CLI 工具用 tenv exact pin**：用 `.opentofu-version`、`.terramate-version` 指定本 repo 預期使用的實際 CLI 版本。
+2. **工具 runtime guard 保留 `~> X.Y.Z`**：OpenTofu / Terramate 自己仍用 `required_version` 檢查版本是否落在已驗證的 patch line。
+3. **Provider 用 constraint + lock file**：`required_providers` 表達相容範圍，`.terraform.lock.hcl` 鎖定實際 provider 版本與 checksums。
+
+這樣分工後，tenv 負責「選哪個 binary」，OpenTofu / Terramate 負責「拒絕未驗證版本」，provider lock file 負責「可重現與供應鏈驗證」。
 
 | 對象 | 約束位置 | 寫法 | 允許範圍 |
 |------|----------|------|----------|
+| OpenTofu CLI | `.opentofu-version` | `1.11.6` | exactly 1.11.6 |
+| Terramate CLI | `.terramate-version` | `0.17.0` | exactly 0.17.0 |
 | Terramate | `terramate.tm.hcl` 的 `required_version` | `~> 0.17.0` | 0.17.x |
 | OpenTofu | `globals "tofu"` 內 `required_version`，由 `generate_hcl` 注入 | `~> 1.11.6` | 1.11.x |
 | google provider | `globals "tofu"` 內 `google_provider`，由 `generate_hcl` 注入 | `~> 7.31.0` | 7.31.x |
 
+### 為什麼 Provider 不只用 exact pin
+
+Provider 版本有兩層語意：
+
+- `required_providers.version` 是**相容性宣告**：這份 IaC 允許哪些 provider 版本。
+- `.terraform.lock.hcl` 是**實際選用結果**：OpenTofu 目前選到哪個 provider 版本，以及該 provider package 的 checksums。
+
+因此即使把 provider constraint 改成 `= 7.31.0`，仍然需要 commit `.terraform.lock.hcl`。exact pin 可以讓版本升級在 code diff 中更明顯，但不能取代 lock file 的 checksum 驗證，也不能避免新 stack 第一次 `tofu init` 時產生 lock file。
+
+本 lab 目前保留 `~> 7.31.0`，原因是它清楚限制在 7.31 patch line，同時讓 lock file 負責實際版本與 hash。若未來把這套模式推向 production，可再視審計要求改成 `= 7.31.0`，但 lock file 仍必須保留。
+
 **lock file 政策：**
 
 - `.terraform.lock.hcl` **必須 commit**（提供 provider 確切版本與 hash 的可重現性）
-- Terramate 沒有對等 lock file 機制，靠 `required_version` 收緊到 minor 即是目前能做到的最強約束
-- 不使用 `.opentofu-version` / `.terramate-version`（避免 tenv 切換與 code 內版本約束混淆）
+- CI 不應在一般 plan/apply 流程中默默更新 lock file
+- Provider 升級應走獨立 PR，讓 constraint diff 與 lock file diff 一起 review
+- Terramate 沒有 provider lock file 這種對等機制，因此 Terramate CLI 由 `.terramate-version` exact pin，加上 `required_version` runtime guard
 
 **升級流程：**
 
-1. 改 `globals` 中的版本字串（例如 `~> 7.31.0` → `~> 7.32.0`）
-2. `terramate generate` 同步生成檔
-3. `tofu init -upgrade` 更新 lock file
-4. Commit code 與 lock file 一起 review
+OpenTofu / Terramate CLI 升級：
+
+1. 修改 `.opentofu-version` 或 `.terramate-version`
+2. 修改對應的 `required_version` patch line
+3. 執行 `terramate generate`
+4. Commit version file、HCL 設定與 generated files 一起 review
+
+Provider 升級：
+
+1. 改 `globals` 中的 provider constraint（例如 `~> 7.31.0` → `~> 7.32.0`）
+2. `terramate generate` 同步 generated versions
+3. `terramate run -- tofu init -upgrade` 更新各 stack lock file
+4. Commit code、generated files 與 lock files 一起 review
+
+### Terramate git-clean 與 lock file
+
+`terramate run` 預設拒絕在 working tree 有 uncommitted / untracked 檔案時執行，這是為了避免「實際執行的 IaC 沒有被 Git 記錄」。因此新增 stack 或升級 provider 時，常見流程會拆成兩個 commit：
+
+```text
+修改 IaC / Terramate globals
+→ terramate generate
+→ commit IaC 與 generated files
+→ terramate run -- tofu init
+→ commit .terraform.lock.hcl
+→ terramate run -- tofu plan/apply
+```
+
+這個流程的重點不是「commit 後就代表線上已一致」，而是讓 plan/apply 使用可追溯的 desired state。線上狀態是否一致仍由 remote state、`tofu plan`、`tofu apply` 和後續 drift detection 保證。
 
 ---
 
