@@ -6,9 +6,11 @@
 
 ## 設計重點
 
-### 為何用 plan SA 而非 apply SA
+### 為何用專屬 drift SA 而非 plan SA
 
-Drift detection 只需要讀取 state 和 GCP 資源，不需要寫入。Plan SA（`github-actions-tofu-plan`）擁有最小權限：`objectViewer`、`compute.viewer`、`serviceUsageViewer`。
+Drift detection 只需要讀取 state 和 GCP 資源，不需要寫入。Plan SA（`github-actions-tofu-plan`）的 WIF binding 是 `pull_request` subject，schedule / workflow_dispatch 的 subject 是 `ref:refs/heads/main`，兩者不同。
+
+因此建立獨立的 `github-actions-tofu-drift` SA，WIF binding 綁 `ref:refs/heads/main`，Roles 與 plan SA 相同（read-only）：`objectViewer`、`compute.viewer`、`serviceUsageViewer`。職責拆分清楚，未來個別撤銷不互相影響。
 
 ### WIF subject for scheduled events
 
@@ -36,7 +38,7 @@ Scheduled drift detection 用途獨立，單獨建立 `github-actions-tofu-drift
 | 1 | 錯誤（provider 連線失敗、state 損毀等） |
 | 2 | 成功，**偵測到 drift**（有待套用的變更） |
 
-`terramate run --continue-on-error` 遇到非零退出碼會繼續執行其他 stack，最後以 exit 1 結束。
+> ⚠️ 實作上不能用 `terramate run --continue-on-error -- sh -c '... tofu plan; printf'`：`sh -c` 的 exit code 是最後一個指令（`printf`，exit 0），會把 exit 2 蓋掉，導致 drift 永遠偵測不到。正確做法是逐 stack 手動迴圈，搭配 `|| plan_exit=$?` 捕捉 exit code（詳見 Phase B）。
 
 ### Issue deduplication
 
@@ -130,20 +132,20 @@ git push
 
 ### Phase B — 新增 drift detection workflow
 
-建立 `.github/workflows/drift.yml`：
+建立 `.github/workflows/drift.yml`（最終版本）：
 
 ```yaml
 name: Drift Detection
 
 on:
-  schedule:
-    - cron: '0 2 * * *'   # 每天 02:00 UTC（台灣時間 10:00）
+  # schedule:
+  #   - cron: '0 2 * * *'   # 每天 02:00 UTC（台灣時間 10:00）
   workflow_dispatch:        # 手動觸發，方便測試
 
 permissions:
   contents: read
   id-token: write
-  issues: write            # 開 Issue 需要
+  issues: write
 
 env:
   TOFU_VERSION: "1.11.6"
@@ -157,7 +159,19 @@ jobs:
     name: Detect drift in all stacks
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
+
+      - name: Create plugin cache dir
+        run: |
+          mkdir -p "$HOME/.terraform.d/plugin-cache"
+          echo "TF_PLUGIN_CACHE_DIR=$HOME/.terraform.d/plugin-cache" >> "$GITHUB_ENV"
+
+      - uses: actions/cache@v5
+        with:
+          path: ~/.terraform.d/plugin-cache
+          key: ${{ runner.os }}-tofu-providers-${{ env.TOFU_VERSION }}-google-7.31
+          restore-keys: |
+            ${{ runner.os }}-tofu-providers-
 
       - id: auth
         uses: google-github-actions/auth@v3
@@ -170,7 +184,7 @@ jobs:
         with:
           version: ${{ env.TERRAMATE_VERSION }}
 
-      - uses: opentofu/setup-opentofu@v1
+      - uses: opentofu/setup-opentofu@v2
         with:
           tofu_version: ${{ env.TOFU_VERSION }}
           tofu_wrapper: false
@@ -180,22 +194,42 @@ jobs:
 
       - name: Drift check
         id: drift
-        continue-on-error: true
         run: |
+          drift_found=false
+          error_found=false
+          report="${{ runner.temp }}/drift-report.md"
+
           {
             echo "## Drift Detection Report"
             echo ""
             echo "**Run:** ${{ github.run_id }} | **Time:** $(date -u '+%Y-%m-%d %H:%M UTC')"
             echo ""
-            terramate run --no-tags foundational --continue-on-error -- \
-              sh -c 'printf "\n### Stack: %s\n\`\`\`\n" "$(realpath --relative-to="$GITHUB_WORKSPACE" .)" && tofu plan -detailed-exitcode -no-color -input=false -lock=false; printf "\n\`\`\`\n"'
-          } > ${{ runner.temp }}/drift-report.md
+          } > "$report"
+
+          while IFS= read -r stack; do
+            printf "\n### Stack: %s\n\`\`\`\n" "$stack" >> "$report"
+            plan_exit=0
+            (cd "$GITHUB_WORKSPACE/$stack" && tofu plan -detailed-exitcode -no-color -input=false -lock=false) \
+              >> "$report" 2>&1 || plan_exit=$?
+            printf "\`\`\`\n" >> "$report"
+
+            case $plan_exit in
+              0) ;;
+              2) drift_found=true ;;
+              *) error_found=true ;;
+            esac
+          done < <(terramate list --no-tags foundational)
+
+          echo "drift_found=$drift_found" >> "$GITHUB_OUTPUT"
+          echo "error_found=$error_found" >> "$GITHUB_OUTPUT"
 
       - name: Open or update GitHub Issue on drift
-        if: steps.drift.outcome == 'failure'
+        if: steps.drift.outputs.drift_found == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          gh label create drift --color "#e4e669" --description "Infrastructure drift detected" 2>/dev/null || true
+
           report=$(cat ${{ runner.temp }}/drift-report.md)
           existing=$(gh issue list --label drift --state open --json number -q '.[0].number')
 
@@ -210,12 +244,20 @@ jobs:
               --body "$report"
           fi
 
+      - name: Fail workflow on plan error
+        if: steps.drift.outputs.error_found == 'true'
+        run: |
+          echo "::error::One or more stacks failed to plan. Check the logs above."
+          exit 1
+
       - name: Fail workflow on drift
-        if: steps.drift.outcome == 'failure'
+        if: steps.drift.outputs.drift_found == 'true'
         run: |
           echo "::error::Drift detected. See GitHub Issue for details."
           exit 1
 ```
+
+> ⚠️ `TF_PLUGIN_CACHE_DIR` 必須透過 `GITHUB_ENV` 設定而非 YAML `env` block：YAML env 不展開 `~`，OpenTofu 的 Go 程式碼會把 `~/` 當相對路徑在 stack 目錄下建立 `~` 資料夾，觸發 Terramate git-untracked safeguard。
 
 commit + push main：
 
@@ -247,9 +289,15 @@ git push
 
 | 項目 | 預期結果 |
 |------|---------|
-| plan SA WIF auth（schedule subject） | ✅ |
-| 所有非 foundational stack 執行 plan | ✅ |
-| 無 drift 時 workflow 成功，無 Issue | ✅ |
-| 有 drift 時自動開 Issue | ✅ |
-| 重複執行時在既有 Issue 留言（不重複開） | ✅ |
+| Drift SA WIF auth（`ref:refs/heads/main` subject） | ✅ |
+| 所有非 foundational stack 執行 `tofu plan -detailed-exitcode` | ✅ |
+| exit 0（無變更）→ 不開 Issue，workflow 成功 | ✅ |
+| exit 2（drift）→ 自動開 Issue，workflow fail | ✅ |
+| exit 1（plan error）→ 不開 Issue，workflow fail | ✅（設計驗證） |
+| 重複執行時在既有 Issue 留言（不重複開） | ✅（設計驗證） |
 | `workflow_dispatch` 手動可觸發 | ✅ |
+| Provider plugin cache 避免下載 timeout | ✅ |
+
+### 已知 drift：dev/vm
+
+`stacks/dev/vm` 在 Lab 03c 執行 `tofu destroy` 後 VM 已從 GCP 刪除，但 `main.tf` 保留供實驗參考，drift detection 會持續偵測到 `Plan: 1 to add`。此為預期狀態，Schedule trigger 暫時停用，待日後決定處置方式（移除 config 或排除該 stack）後再重新啟用。
