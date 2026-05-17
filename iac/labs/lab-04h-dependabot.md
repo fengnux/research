@@ -56,6 +56,27 @@ Dependabot 不會追這兩個（不是 action）。**接受手動升級**，理�
 2. 升級流程已文件化（lab 04e Phase A 的 SHA 查詢命令可直接 reuse）
 3. 引入 Renovate `regexManagers` 為了追兩個 var 不划算
 
+### 為何 `dependabot.yml` 不放在 `.github/workflows/`
+
+GitHub 對 `.github/` 下有幾個**固定路徑約定**，不是我們的選擇：
+
+| 路徑 | 用途 | 性質 |
+|------|------|------|
+| `.github/workflows/*.yml` | GitHub Actions workflows | 你定義的「流程」（事件觸發跑 job） |
+| `.github/dependabot.yml` | Dependabot 設定 | **GitHub 託管服務**的設定檔 |
+| `.github/CODEOWNERS` | code review 自動分派 | repo metadata |
+| `.github/ISSUE_TEMPLATE/` | issue 範本 | UI metadata |
+| `.github/FUNDING.yml` | 贊助連結 | UI metadata |
+
+關鍵差別：
+
+- `workflows/*.yml` 是「**你定義的流程**」，GitHub Actions runner 跑它
+- `dependabot.yml` 是「**Dependabot 服務的設定**」。Dependabot 本身跑在 GitHub 基礎設施上，不是 Action — 它讀這個檔案知道「要追什麼 ecosystem、多久掃一次、PR 怎麼設」，**自己安排排程**，根本不需要 workflow 觸發。
+
+放錯位置（例如丟去 `.github/workflows/dependabot.yml`）會被當壞掉的 workflow YAML fail，Dependabot 服務則找不到設定不會啟動。
+
+類似的還有 Renovate：預設找 `.github/renovate.json` 或 `renovate.json5`（也不在 `workflows/` 內）。
+
 ### 不影響的範圍
 
 | 項目 | 行為 |
