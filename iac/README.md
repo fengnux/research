@@ -62,6 +62,7 @@ iac/
 | [lab-04f WIF Condition 收斂](labs/lab-04f-wif-condition.md) | ✅ 完成 |
 | [lab-04h Dependabot](labs/lab-04h-dependabot.md) | ✅ 完成 |
 | [lab-05a VPC Module + 階層化 globals](labs/lab-05a-vpc-module-hierarchical-globals.md) | ✅ 完成 |
+| [lab-05b GKE Autopilot Module + IAP bastion](labs/lab-05b-gke-module.md) | 📝 規劃中 |
 | [lab-scc-custom-findings](labs/lab-scc-custom-findings.md) | 草稿／評估中 |
 | [evidence-pack-overview](labs/evidence-pack-overview.md) | 進行中 |
 
