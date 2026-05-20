@@ -588,6 +588,9 @@ gcloud container clusters list --project=research-lab-495809
 | network/subnet data source 找不到 | plan 階段失敗 | naming convention 與 Lab 05a 一致；若改名要同步 |
 | **ci tofu SA 缺 SA / IAM 管理權限**（建 `google_service_account` 或 `google_project_iam_member` 需 `roles/iam.serviceAccountAdmin` + `roles/resourcemanager.projectIamAdmin` + `roles/iam.serviceAccountUser`） | CI apply 在 SA-related resource 403；繞回 WIF stack manual apply 多一輪 | 設計 runbook 時：每個會被 CI apply 的 resource 對應檢視 ci SA 是否有對應 GCP IAM permission；本 lab 已於 [PR #23](https://github.com/fengnux/tofu-terramate-lab/pull/23) 補完三 role。詳 [2026-05-19 log 坑二](../logs/2026-05-19.md) |
 | CI apply 失敗後想用 `gh run rerun --failed` 重跑 | rerun 對應的舊 commit SHA 與已往前的 main 不一致，workflow 內 git check 對不上 → attempt 仍 fail | 改用 `terramate trigger --change`，見 [ci-apply-recovery runbook](../docs/runbooks/ci-apply-recovery.md) |
+| **`stacks/dev/apis` 漏列 `container.googleapis.com`** | GKE cluster create 撞 403「Kubernetes Engine API has not been used」 | 寫 lab runbook 時：每個新 resource type 對應檢視 `dev/apis` 是否啟用對應 service；本 lab 已於 [PR #27](https://github.com/fengnux/tofu-terramate-lab/pull/27) 補完。教訓：design phase 列「資源 → IAM permission」之外，也要列「資源 → 必啟 API」 |
+| 多 stack 同 PR 改動撞 GitHub CodeQL upload-sarif 拒收（multiple runs same category） | CI Trivy 步驟 fail，跟 stack 安全性無關 | 已於 [PR #26](https://github.com/fengnux/tofu-terramate-lab/pull/26) 修 `.github/workflows/opentofu.yml` jq 把多 SARIF flatten 為單一 run（Codex 協助找出 jq scoping bug） |
+| dev-vm SA 權限只覆蓋 `container.developer`，跑 Workload Identity demo 第三方 step 缺 `iam.serviceAccountAdmin` | demo 設定卡 `iam.serviceAccounts.list` 403 / `add-iam-policy-binding` 403 | GCP-side admin（GSA binding）改本地用 user creds 執行；K8s-side（kubectl）留在 dev-vm。production 應由 IaC 管 binding，不該人工跑 |
 
 ## 驗收清單
 
