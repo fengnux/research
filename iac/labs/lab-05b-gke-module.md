@@ -586,6 +586,8 @@ gcloud container clusters list --project=research-lab-495809
 | GKE cluster create 超過 GitHub Actions job timeout（預設 6 小時 OK，但 step timeout 可能短） | apply workflow 失敗 | workflow 已設定 step timeout > 30min；GKE create ≈ 8min 安全 |
 | Autopilot 不支援的 workload spec（HostPort、Privileged container） | demo workload 失敗 | hello pod 用 cloud-sdk image，無特權需求 |
 | network/subnet data source 找不到 | plan 階段失敗 | naming convention 與 Lab 05a 一致；若改名要同步 |
+| **ci tofu SA 缺 SA / IAM 管理權限**（建 `google_service_account` 或 `google_project_iam_member` 需 `roles/iam.serviceAccountAdmin` + `roles/resourcemanager.projectIamAdmin` + `roles/iam.serviceAccountUser`） | CI apply 在 SA-related resource 403；繞回 WIF stack manual apply 多一輪 | 設計 runbook 時：每個會被 CI apply 的 resource 對應檢視 ci SA 是否有對應 GCP IAM permission；本 lab 已於 [PR #23](https://github.com/fengnux/tofu-terramate-lab/pull/23) 補完三 role。詳 [2026-05-19 log 坑二](../logs/2026-05-19.md) |
+| CI apply 失敗後想用 `gh run rerun --failed` 重跑 | rerun 對應的舊 commit SHA 與已往前的 main 不一致，workflow 內 git check 對不上 → attempt 仍 fail | 改用 `terramate trigger --change`，見 [ci-apply-recovery runbook](../docs/runbooks/ci-apply-recovery.md) |
 
 ## 驗收清單
 
