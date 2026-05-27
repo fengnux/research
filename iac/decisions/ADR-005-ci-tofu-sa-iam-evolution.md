@@ -126,4 +126,4 @@ lab 規模傾向用 predefined role 不開 custom role，但要在 ADR 留紀錄
 - [ADR-002 WIF SA 拆分](ADR-002-wif-sa-split.md)
 - [ADR-003 Foundational stacks 排除 CI](ADR-003-foundational-stacks-excluded-from-ci.md)
 - [CI apply recovery runbook](../docs/runbooks/ci-apply-recovery.md)
-- 案例：[2026-05-19 log 踩坑二](../logs/2026-05-19.md)、[2026-05-20 log 踩坑二](../logs/2026-05-20.md)
+- 案例：[2026-05-19 log 踩坑二](../../logs/2026-05-19.md)、[2026-05-20 log 踩坑二](../../logs/2026-05-20.md)

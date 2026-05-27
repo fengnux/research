@@ -9,8 +9,9 @@ iac/
 ├── decisions/   架構決策紀錄（為什麼這樣設計）
 ├── docs/        技術參考（是什麼、怎麼運作）
 ├── labs/        實驗 runbook（怎麼操作、步驟順序）
-├── logs/        每日執行日誌（什麼時候做了什麼）
 └── opentofu/    ← 已移至 tofu-terramate-lab repo（僅留 _modules/）
+
+../logs/         每日執行日誌（repo 根，跨 iac/ audit/ 共用）
 ```
 
 ## 各層定位
@@ -20,7 +21,7 @@ iac/
 | `decisions/` | 為什麼這樣決定？考慮了哪些替代方案？ | 對某個設計感到疑惑時 |
 | `docs/` | 這個工具/概念是什麼？怎麼運作？ | 需要技術背景知識時 |
 | `labs/` | 這件事怎麼一步步做？ | 要執行或重現某個實驗時 |
-| `logs/` | 那天實際發生了什麼？ | 回溯問題或查執行紀錄時 |
+| `../logs/` | 那天實際發生了什麼？ | 回溯問題或查執行紀錄時 |
 
 ## decisions/ — 架構決策紀錄
 
@@ -66,8 +67,8 @@ iac/
 | [lab-scc-custom-findings](labs/lab-scc-custom-findings.md) | 草稿／評估中 |
 | [evidence-pack-overview](labs/evidence-pack-overview.md) | 進行中 |
 
-## logs/ — 執行日誌
+## logs/ — 執行日誌（已搬至 repo 根）
 
-每日紀錄：`logs/YYYY-MM-DD.md`
+每日紀錄：`../logs/YYYY-MM-DD.md`（per [audit ADR-001](../audit/decisions/ADR-001-audit-directory-separation.md)，2026-05-27 從 `iac/logs/` 提升到 repo 根，跨 iac/audit/ 共用）
 
-最新：[2026-05-19](logs/2026-05-19.md)
+最新：[2026-05-20](../logs/2026-05-20.md)

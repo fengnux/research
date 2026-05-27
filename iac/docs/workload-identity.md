@@ -178,4 +178,4 @@ KSA 在 K8s YAML（或 Helm chart）內，annotation 也宣告式管理。
 - [GKE Workload Identity 官方文件](https://cloud.google.com/kubernetes-engine/docs/concepts/workload-identity)
 - [Workload Identity Federation（CI 端）](workload-identity-federation.md)
 - 案例：[Lab 05b GKE module + WI demo](../labs/lab-05b-gke-module.md)
-- 實測紀錄：[2026-05-20 log](../logs/2026-05-20.md)
+- 實測紀錄：[2026-05-20 log](../../logs/2026-05-20.md)

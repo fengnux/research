@@ -217,7 +217,7 @@ gh api repos/fengnux/tofu-terramate-lab/dependabot/alerts 2>&1 | head -20
 
 ## 實際執行紀錄（2026-05-17）
 
-詳見 [logs/2026-05-17.md](logs/2026-05-17.md) 最下方「Lab 04h」段。重點 PR：
+詳見 [logs/2026-05-17.md](../../logs/2026-05-17.md) 最下方「Lab 04h」段。重點 PR：
 
 | PR | 內容 | 狀態 |
 |----|------|------|

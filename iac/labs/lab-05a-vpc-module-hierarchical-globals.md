@@ -549,7 +549,7 @@ apply 成功後，moved blocks 已經完成歷史任務。可選：
 - [ ] `diff /tmp/network-vpc-before.txt /tmp/network-vpc-after.txt` **無差異**（雲端資源未重建）
 - [ ] outputs 值未變（`terramate run --tags network -- tofu output` 對比）
 - [ ] log 紀錄 multi-env 範本 diff
-- [ ] 當日 log 補 `iac/labs/logs/2026-MM-DD.md` 紀錄
+- [ ] 當日 log 補 `logs/YYYY-MM-DD.md` 紀錄
 
 ## 不在本 lab 範圍
 
