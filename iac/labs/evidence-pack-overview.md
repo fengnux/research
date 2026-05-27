@@ -1,6 +1,6 @@
 # evidence-pack — 可視化 與 稽核材料產出
 
-> **代號 `evidence-pack`**。正式 lab 編號待此實驗排上日程時再決定（可能不會是 06）。
+> **代號 `evidence-pack`**。系列已啟動（2026-05-27），所有後續實驗放在 [audit/](../../audit/) 而非 `iac/labs/`，見 [audit ADR-001](../../audit/decisions/ADR-001-audit-directory-separation.md)。本檔暫留 `iac/labs/` 當入口導讀，foundation lab 完成後搬入 `audit/labs/`。
 
 ## 主題
 
@@ -12,32 +12,41 @@
 
 ## 路線
 
-Lab 04 系列已建立的訊號 散在 GitHub Actions log 與 GCP console。本 phase 走兩條互補路線整合：
+Lab 04 系列已建立的訊號 散在 GitHub Actions log 與 GCP console。本 phase 整合方式：
 
-| 路線 | 證據類型 | 主工具 |
-|------|---------|--------|
-| **A. Terramate Cloud** | 變更管控（who/when/what/approval/plan/apply）| Terramate Cloud free tier |
-| **C. GCP-native** | 資產與權限（inventory / IAM / audit logs）| Cloud Asset Inventory + Cloud Audit Logs |
+| 路線 | 證據類型 | 主工具 | 狀態 |
+|------|---------|--------|------|
+| ~~A. Terramate Cloud~~ | ~~變更管控（who/when/what/approval/plan/apply）~~ | ~~Terramate Cloud free tier~~ | **scope out**：free tier 只支援 OAuth 登入，與身份偏好不合；變更管控改由 DuckDB + GitHub PR API 自行拼出 |
+| **C. GCP-native** | 資產與權限（inventory / IAM / audit logs）| Cloud Asset Inventory + Cloud Audit Logs | 採用 |
+| **Foundation（新）** | DuckDB 為 query engine、GCS evidence bucket、SARIF 為第一資料源 | DuckDB + httpfs + Bearer token | 採用 — 後續所有 lab 共用 |
 
-A + C 為核心，最終由 capstone 整合輸出單一月度報告。
+Foundation 為起點，C 路線拆成 b/c/d 三個 lab，最終由 d capstone 整合輸出單一月度報告。
+
+詳見：
+- [audit ADR-002 — DuckDB + Bearer token](../../audit/decisions/ADR-002-duckdb-query-engine.md)
+- [audit ADR-003 — Evidence bucket 分離](../../audit/decisions/ADR-003-evidence-bucket-separation.md)
 
 ## Lab 排序
 
-### evidence-pack-a — Terramate Cloud 接線 + 變更管控證據
+### evidence-pack-foundation — DuckDB + GCS pipeline 建置（新增）
 
 **範圍**
-- 註冊 Terramate Cloud free tier、安裝 GitHub App
-- CI workflow 加 `terramate cloud` hooks（plan / apply / drift）
-- 累積 deployment / drift 資料
+- 本機安裝 DuckDB CLI（pin 版本，跟 trivy 同套路）
+- 設定 Bearer token 認證 pattern（ADC 短期 token → `TYPE HTTP` secret）
+- 手動上一份 Trivy SARIF 到 evidence bucket，驗證 read pipeline
+- 寫 SARIF normalized view + 第一個 monthly summary query
+- 產出第一份 markdown artifact
 
 **產出**
-- `audit/changes/2026-MM.md`：dashboard 截圖索引 + 對應稽核問題說明
-- 每張截圖標註：來源（哪個 dashboard）、時間範圍、回答的稽核問題
+- `audit/sql/views/sarif_findings.sql`
+- `audit/sql/queries/monthly_sarif_summary.sql`
+- `audit/artifacts/2026-MM/sarif_summary.md`
+- ADR-002 / ADR-003 已先行記錄選型理由
 
 **回答的稽核問題**
-- 「過去 30 天每個 production 變更：誰提的、誰 approve、plan 結果、apply 何時、是否 drift」
+- 「過去 N 個月 Trivy IaC 掃描結果趨勢、新增 / 解決 finding 數、by rule_id 分布」
 
-**free-tier 注意**：先驗 free tier 能否覆蓋全部需求；若有 paid-only 功能（如長期 retention），在 lab 結論寫實際限制。
+**前置**：[evidence-bucket-bootstrap](../../audit/labs/evidence-bucket-bootstrap.md)（建立 evidence bucket）
 
 ---
 
@@ -100,7 +109,6 @@ A + C 為核心，最終由 capstone 整合輸出單一月度報告。
 
 | 項目 | 風險 | 緩解策略 |
 |------|------|---------|
-| Terramate Cloud free tier | 是否吃到功能限制？ | evidence-pack-a 結論章節寫實際遇到的限制 |
 | GCP Asset Inventory | 可能 query/storage 費用 | snapshot 量小、用 GCS 不用 BigQuery |
 | Audit Logs Admin Activity | 永久免費保留 400 天 | 不啟 Data Access logs |
 | IAM Recommender | 需 enable `recommender.googleapis.com` | 確認 free quota |
@@ -124,4 +132,10 @@ A + C 為核心，最終由 capstone 整合輸出單一月度報告。
 
 - **依賴 Lab 04 系列**：04a approval gate / 04d drift / 04e Trivy / 04h Dependabot 都是訊號源
 - **依賴 Lab 05a**：module 化讓 evidence-pack-b 的「per-module 資產清冊」分組更乾淨
-- **不阻塞 Lab 05b**：05b（script block）獨立進行
+- **依賴 evidence-bucket-bootstrap**：所有資料源寫入 evidence bucket，bucket 由 IaC 管理（[audit ADR-003](../../audit/decisions/ADR-003-evidence-bucket-separation.md)）
+
+## 相關決策
+
+- [audit ADR-001 — 目錄分離](../../audit/decisions/ADR-001-audit-directory-separation.md)
+- [audit ADR-002 — DuckDB + Bearer token](../../audit/decisions/ADR-002-duckdb-query-engine.md)
+- [audit ADR-003 — Evidence bucket 分離](../../audit/decisions/ADR-003-evidence-bucket-separation.md)
