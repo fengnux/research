@@ -156,6 +156,9 @@ gsutil ls -L gs://research-lab-495809-evidence  # 確認 versioning / UBLA / PAP
 gsutil lifecycle get gs://research-lab-495809-evidence  # 三條 rule
 
 # smoke test 寫入
+# 注意：寫入靠 project Owner 隱含權限；stack 明寫的 binding 只有 read
+# （objectViewer）。若未來收掉 Owner，此步驟需先補 objectCreator binding
+# 或改用 CI SA 做寫測。詳見 audit ADR-003 §3.1。
 echo "hello" | gsutil cp - gs://research-lab-495809-evidence/_test/hello.txt
 gsutil cat gs://research-lab-495809-evidence/_test/hello.txt
 gsutil rm gs://research-lab-495809-evidence/_test/hello.txt

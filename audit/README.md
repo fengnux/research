@@ -39,6 +39,7 @@ audit/      ← 消費訊號，產出 evidence artifact
 
 ## 進度
 
+- [x] evidence-bucket-bootstrap — GCS evidence bucket 已建（PR tofu-terramate-lab#30，2026-06-02）
 - [ ] evidence-pack-foundation — DuckDB + GCS pipeline 建置 + 第一份 SARIF artifact
 - [ ] evidence-pack-b — Asset Inventory + ownership label
 - [ ] evidence-pack-c — Cloud Audit Logs + IAM access audit
