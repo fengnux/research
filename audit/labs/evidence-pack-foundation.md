@@ -79,8 +79,8 @@ gcloud auth print-access-token >/tmp/evidence-runner.token
 依 [ADR-002](../decisions/ADR-002-duckdb-query-engine.md) — 從 GitHub releases 下載 pinned binary，不用 brew。
 
 ```bash
-DUCKDB_VERSION="v1.1.3"   # 寫 runbook 當下查最新 stable，commit 進 audit/docs/duckdb-toolchain.md
-ARCH="linux-amd64"        # evidence-runner Debian VM
+DUCKDB_VERSION="v1.5.3"   # 執行時最新 stable；版本/SHA 見 audit/docs/duckdb-toolchain.md
+ARCH="linux-amd64"        # evidence-runner Debian VM（Trivy 同樣 pin，本次 v0.71.0）
 curl -L -o /tmp/duckdb.zip \
   "https://github.com/duckdb/duckdb/releases/download/${DUCKDB_VERSION}/duckdb_cli-${ARCH}.zip"
 unzip /tmp/duckdb.zip -d /tmp/
@@ -163,11 +163,15 @@ exec duckdb -init "$(dirname "$0")/bootstrap.sql" "$@"
 audit/sql/duckdb-wrap.sh
 ```
 
-進入 duckdb prompt 後：
+> ⚠️ **執行修正**：`TYPE HTTP` + bearer token 走 plain HTTPS **不支援 glob（`*`）**——
+> 純 HTTPS 無法列舉 bucket。改成「先用 gsutil（SA token）列舉物件 → 把明確 URL 清單
+> 注入 DuckDB 變數 `sarif_urls`」。詳見 [sarif-schema-notes](../docs/sarif-schema-notes.md) §2。
+
+先用單一明確 URL 驗證 bearer token 通：
 
 ```sql
 SELECT count(*) FROM read_json_auto(
-  'https://storage.googleapis.com/research-lab-495809-evidence/sarif/2026-06/*.sarif.json',
+  'https://storage.googleapis.com/research-lab-495809-evidence/sarif/2026-06/<物件名>.sarif.json',
   maximum_depth = -1
 );
 ```
@@ -195,39 +199,19 @@ sarif.json
 │               └── region.startLine        ← line number
 ```
 
-`audit/sql/views/sarif_findings.sql`：
+定稿見 [`audit/sql/views/sarif_findings.sql`](../sql/views/sarif_findings.sql)。關鍵：path 不用 glob，改吃變數 `getvariable('sarif_urls')`（清單由 orchestration 先 `SET VARIABLE`，見上方 Phase 6 修正與 [sarif-schema-notes](../docs/sarif-schema-notes.md)）。另解析出 `severity`（從 `message.text` 的 `Severity: XXX`），比 SARIF `level` 更貼稽核語彙。
+
+執行前先注入清單：
 
 ```sql
-CREATE OR REPLACE VIEW sarif_findings AS
-WITH src AS (
-  SELECT
-    filename,
-    runs
-  FROM read_json_auto(
-    'https://storage.googleapis.com/research-lab-495809-evidence/sarif/**/*.sarif.json',
-    filename = true,
-    maximum_depth = -1
-  )
-)
-SELECT
-  filename,
-  regexp_extract(filename, 'sarif/([0-9]{4}-[0-9]{2})/', 1)  AS month,
-  run.tool.driver.name                                        AS tool,
-  result.ruleId                                               AS rule_id,
-  result.level                                                AS level,
-  result.message.text                                         AS message,
-  loc.physicalLocation.artifactLocation.uri                   AS file,
-  loc.physicalLocation.region.startLine                       AS line
-FROM src,
-     UNNEST(src.runs) AS t(run),
-     UNNEST(run.results) AS r(result),
-     UNNEST(result.locations) AS l(loc);
+SET VARIABLE sarif_urls = [ 'https://storage.googleapis.com/.../a.sarif.json', ... ];
+.read audit/sql/views/sarif_findings.sql
 ```
 
 驗收：
 
 ```sql
-SELECT count(*) FROM sarif_findings;  -- 應 = trivy 報告的 finding 數
+SELECT count(*) FROM sarif_findings;  -- 應 = trivy 報告的 finding 數（本次 21）
 SELECT * FROM sarif_findings LIMIT 5;
 ```
 
@@ -279,13 +263,13 @@ audit/sql/duckdb-wrap.sh \
 
 ### Phase 9：驗收 + 收尾
 
-- [ ] `audit/artifacts/2026-06/sarif_summary.md` 內容看起來合理（總 finding 數對得上、severity / rule 分布合理）
-- [ ] `audit/docs/duckdb-toolchain.md` 完成（版本、SHA、wrapper 使用）
-- [ ] `audit/docs/sarif-schema-notes.md` 記錄 UNNEST 過程踩到的坑（如有）
-- [ ] 三個 SQL 檔加 file header 註解（用途、輸入、輸出）
-- [ ] 當日 log 補 `logs/YYYY-MM-DD.md`
-- [ ] 必要時補 `audit/decisions/ADR-004-sarif-view-schema.md`（如果 view 設計有非顯而易見的選擇）
-- [ ] VM 不使用時 stop；foundation 系列完成後 destroy `evidence-runner`
+- [x] `audit/artifacts/2026-06/sarif_summary.md` 內容看起來合理（21 findings；MEDIUM 14 / LOW 7，數字自洽）
+- [x] `audit/docs/duckdb-toolchain.md` 完成（DuckDB v1.5.3 / Trivy v0.71.0、SHA、安裝/升版）
+- [x] `audit/docs/sarif-schema-notes.md` 記錄踩坑（HTTP glob 限制、level vs severity、UNNEST）
+- [x] 三個 SQL 檔加 file header 註解（用途、輸入、輸出）
+- [x] 當日 log 補 `logs/2026-06-03.md`
+- [ ] ADR-004（view schema）— 暫不需；getvariable/列舉解法已記在 sarif-schema-notes，未達 ADR 門檻
+- [x] VM stop（2026-06-03 收尾後）；foundation 系列完成後再 destroy `evidence-runner`
 
 ## 不在本 lab 範圍
 

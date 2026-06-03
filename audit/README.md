@@ -41,8 +41,8 @@ audit/      ← 消費訊號，產出 evidence artifact
 ## 進度
 
 - [x] evidence-bucket-bootstrap — GCS evidence bucket 已建（PR tofu-terramate-lab#30，2026-06-02）
-- [ ] evidence-runner-instance — 專用 VM + attached SA，取代本機 DuckDB/ADC 執行路徑
-- [ ] evidence-pack-foundation — DuckDB + GCS pipeline 建置 + 第一份 SARIF artifact
+- [x] evidence-runner-instance — 專用 VM + attached SA（tofu-terramate-lab#31，2026-06-03）
+- [x] evidence-pack-foundation — DuckDB v1.5.3 pipeline + 第一份 SARIF artifact（2026-06，21 findings）
 - [ ] evidence-pack-b — Asset Inventory + ownership label
 - [ ] evidence-pack-c — Cloud Audit Logs + IAM access audit
 - [ ] evidence-pack-d — 月度稽核報告 capstone
