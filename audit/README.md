@@ -33,6 +33,7 @@ audit/      ← 消費訊號，產出 evidence artifact
 ## 入口文件
 
 - [evidence-pack-overview](../iac/labs/evidence-pack-overview.md) — 系列總覽（暫留 iac/labs/，待 foundation lab 完成後搬入 audit/labs/）
+- [evidence-runner-instance](labs/evidence-runner-instance.md) — Evidence Pack 專用執行 VM runbook
 - [ADR-001 目錄分離決策](decisions/ADR-001-audit-directory-separation.md)
 - [ADR-002 DuckDB + Bearer token 認證選型](decisions/ADR-002-duckdb-query-engine.md)
 - [ADR-003 Evidence bucket 分離](decisions/ADR-003-evidence-bucket-separation.md)
@@ -40,6 +41,7 @@ audit/      ← 消費訊號，產出 evidence artifact
 ## 進度
 
 - [x] evidence-bucket-bootstrap — GCS evidence bucket 已建（PR tofu-terramate-lab#30，2026-06-02）
+- [ ] evidence-runner-instance — 專用 VM + attached SA，取代本機 DuckDB/ADC 執行路徑
 - [ ] evidence-pack-foundation — DuckDB + GCS pipeline 建置 + 第一份 SARIF artifact
 - [ ] evidence-pack-b — Asset Inventory + ownership label
 - [ ] evidence-pack-c — Cloud Audit Logs + IAM access audit

@@ -61,12 +61,14 @@ gs://research-lab-495809-evidence/
 | 角色 | Role | 範圍 |
 |------|------|------|
 | Writer: security-scan workflow SA（暫用 `github-actions-tofu-plan`，未來考慮分割）| `roles/storage.objectCreator` on bucket | `sarif/*` prefix |
+| Writer: evidence-runner VM SA | `roles/storage.objectCreator` on bucket | foundation lab 測試 SARIF |
 | Writer: CAI export | `roles/storage.objectCreator` | `asset-inventory/*` |
 | Writer: Audit log sink | `roles/storage.objectCreator`（sink SA 自動建）| `audit-logs/*` |
 | Reader: 個人 ADC | `roles/storage.objectViewer` on bucket | 全部 |
+| Reader: evidence-runner VM SA | `roles/storage.objectViewer` on bucket | DuckDB 讀 GCS evidence |
 | Reader: 未來 GHA evidence-pack workflow / GKE pod | `roles/storage.objectViewer` via WIF/WI | 全部 |
 
-注意：本表是設計目標，**foundation lab 只開「個人 reader」最小可運作集合**，writer 隨後續 lab 逐步加。
+注意：本表是設計目標。`evidence-bucket-bootstrap` 先開「個人 reader」最小可運作集合；`evidence-pack-foundation` 改由專用 `evidence-runner` VM 執行後，新增 VM SA reader/writer binding，writer 仍隨後續 lab 逐步拆分。
 
 #### 3.1 為什麼明知冗餘還要寫個人 reader binding
 

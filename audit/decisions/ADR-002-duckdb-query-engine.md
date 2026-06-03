@@ -66,10 +66,11 @@ Token 取得：
 | 場景 | 取 token 方法 | 性質 |
 |------|---------------|------|
 | Local mac | `gcloud auth application-default print-access-token` | ADC 短期 token (~1h) |
+| Compute VM（`evidence-runner`）| `gcloud auth print-access-token` / metadata server | attached SA 短期 token |
 | GKE pod（WI 啟用後）| 同上 / metadata server | WI 換來的短期 token |
 | GHA runner（Lab 04 WIF）| `gcloud auth print-access-token`（WIF 換完後）| WIF 短期 token |
 
-**三場景 SQL 完全一致，差別只在 `$GCS_TOKEN` 怎麼來。** 這是這個 pattern 最大的價值 — foundation lab 在 local 驗證的東西，未來搬 GHA runner（evidence-pack-d 月報）或 GKE CronJob 通通不用改 SQL。
+**各場景 SQL 完全一致，差別只在 `$GCS_TOKEN` 怎麼來。** 這是這個 pattern 最大的價值 — foundation lab 在 `evidence-runner` 驗證的東西，未來搬 GHA runner（evidence-pack-d 月報）或 GKE CronJob 通通不用改 SQL。
 
 ### 3. SQL artifact 結構
 
